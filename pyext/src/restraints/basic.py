@@ -290,47 +290,63 @@ class CylinderRestraint(IMP.Restraint):
         return output
 
 
+class NStableDistanceRestraint(IMP.pmi.restraints.RestraintBase):
 
-class BiStableDistanceRestraint(IMP.Restraint):
-    '''
-    a python restraint with bistable potential
-    Authors: G. Bouvier, R. Pellarin. Pasteur Institute.
-    '''
-    import numpy as np
-    import math
+    """An N-welled harmonic potential."""
 
-    def __init__(self,m,p1,p2,dist1,dist2,sigma1,sigma2,weight1,weight2):
-        '''
-        input twp particles, the two equilibrium distances, their amplitudes, and their weights (populations)
-        '''
-        IMP.Restraint.__init__(self, m, "BiStableDistanceRestraint %1%")
-        self.dist1=dist1
-        self.dist2=dist2
+    def __init__(self, m, p1, p2, dists, sigmas, weights, label=None,
+                 weight=1.):
+        """Setup restraint.
+        @param m Model
+        @param p1 Particle with XYZ coordinates
+        @param p2 Particle with XYZ coordinates
+        @param dists List of equilibrium distances for potentials.
+        @param sigmas List of standard deviations of the potentials
+        @param weights List of weights (populations) to apply to the
+                       potentials. Must sum to 1.
+        @param label A unique label to be used in outputs and
+                     particle/restraint names.
+        @param weight Weight of restraint
+        """
+        super(NStableDistanceRestraint, self).__init__(m, label=label,
+                                                       weight=weight)
 
-        self.sigma1=sigma1
-        self.sigma2=sigma2
-
-        self.weight1=weight1
-        self.weight2=weight2
-
-        if self.weight1+self.weight2 != 1:
+        if sum(weights) != 1.:
             raise ValueError("The sum of the weights must be one")
 
-        self.d1=IMP.core.XYZ(p1)
-        self.d2=IMP.core.XYZ(p2)
-        self.particle_list=[p1,p2]
+        hss = [IMP.core.Harmonic(d, 1. / s**2) for d, s in zip(dists, sigmas)]
+        wss = IMP.core.WeightedSumOfExponential(hss, weights, 1.)
 
-    def gaussian(self,x, mu, sig, w):
-        return w*self.np.exp(-self.np.power(x - mu, 2.) / (2 * self.np.power(sig, 2.)))
+        r = IMP.core.DistanceRestraint(self.m, wss, p1, p2)
+        self.rs.add_restraint(r)
 
-    def unprotected_evaluate(self,da):
-        dist=IMP.core.get_distance(self.d1,self.d2)
-        prob=self.gaussian(dist,self.dist1,self.sigma1,self.weight1)+\
-             self.gaussian(dist,self.dist2,self.sigma2,self.weight2)
-        return -self.math.log(prob)
 
-    def do_get_inputs(self):
-        return self.particle_list
+class BiStableDistanceRestraint(NStableDistanceRestraint):
+
+    """A two-welled harmonic potential.
+
+    Authors: G. Bouvier, R. Pellarin. Pasteur Institute.
+    """
+
+    def __init__(self, m, p1, p2, dist1, dist2, sigma1, sigma2, weight1,
+                 weight2, label=None, weight=1.):
+        """Setup restraint.
+        @param m Model
+        @param p1 Particle with XYZ coordinates
+        @param p2 Particle with XYZ coordinates
+        @param dist1 Equilibrium distance for first potential
+        @param dist2 Equilibrium distance for second potential
+        @param sigma1 Standard deviation for first potential
+        @param sigma2 Standard deviation for second potential
+        @param weight1 Weight (population) of first potential
+        @param weight2 Weight (population) of second potential
+        @param label A unique label to be used in outputs and
+                     particle/restraint names.
+        @param weight Weight of restraint
+        """
+        return super(BiStableDistanceRestraint, self).__init__(
+            m, p1, p2, [dist1, dist2], [sigma1, sigma2], [weight1, weight2],
+            label=label, weight=weight)
 
 
 class DistanceToPointRestraint(IMP.pmi.restraints.RestraintBase):

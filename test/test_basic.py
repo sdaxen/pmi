@@ -48,6 +48,29 @@ class Tests(IMP.test.TestCase):
                                 residue_index=1,copy_index=1).get_selected_particles()[0]
         self.assertEqual(set(rs[0].get_inputs()),set([p1,p2]))
 
+    def test_nstable_distance(self):
+        m = IMP.Model()
+        p1 = IMP.core.XYZ.setup_particle(IMP.Particle(m))
+        p2 = IMP.core.XYZ.setup_particle(IMP.Particle(m))
+        p3 = IMP.core.XYZ.setup_particle(IMP.Particle(m))
+        p1.set_coordinates([0., 0., 0.])
+        p2.set_coordinates([0., 0., 2.])
+        p3.set_coordinates([0., 0., 10.])
+        dists = [1., 2., 4.]
+        weights = [.2, .5, .3]
+        sigmas = [1., .5, 2.]
+        r = IMP.pmi.restraints.basic.NStableDistanceRestraint(
+            m, p1, p2, dists, sigmas, weights)
+        rscore = r.evaluate()
+
+        tprob = sum([w * _harmonic_prob(2, mu, s)
+                     for mu, s, w in zip(dists, sigmas, weights)])
+        tscore = -math.log(tprob)
+        self.assertAlmostEqual(rscore, tscore, delta=1e-6)
+        self.assertRaises(
+            ValueError, IMP.pmi.restraints.basic.NStableDistanceRestraint, m,
+            m, p1, p2, dists, sigmas, [weights[0] + 1e-5] + weights[1:])
+
     def test_bistable_distance(self):
         m = IMP.Model()
         p1 = IMP.core.XYZ.setup_particle(IMP.Particle(m))
@@ -60,14 +83,11 @@ class Tests(IMP.test.TestCase):
         r = IMP.pmi.restraints.basic.BiStableDistanceRestraint(
             m, p1, p2, dists[0], dists[1], sigmas[0], sigmas[1], weights[0],
             weights[1])
-        rscore = r.unprotected_evaluate(None)
-
+        rscore = r.evaluate()
         tprob = (.5 * _harmonic_prob(2., dists[0], sigmas[0]) +
                  .5 * _harmonic_prob(2., dists[1], sigmas[1]))
         tscore = -math.log(tprob)
         self.assertAlmostEqual(rscore, tscore, delta=1e-6)
-        self.assertEqual(len(r.do_get_inputs()), 2)
-        self.assertListEqual(r.do_get_inputs(), [p1, p2])
         self.assertRaises(
             ValueError, IMP.pmi.restraints.basic.BiStableDistanceRestraint, m,
             p1, p2, dists[0], dists[1], sigmas[0], sigmas[1], weights[0],
